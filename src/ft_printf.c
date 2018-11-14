@@ -74,7 +74,8 @@ void parse_flags(t_printf_params *params, const char **format)
 		*format += 1;
 		c = **format;
 	}
-
+	if (params->justify_left)
+		params->pad_zero = 0;
 }
 
 char	*ft_strcpy(char *dst, const char *src)
@@ -109,11 +110,13 @@ void parse_width(t_printf_params *params, const char **format, va_list args)
 {
 	if (**format == '*')
 	{
-		params->margin = va_arg(args, int); // fixme check me
+		params->margin = va_arg(args, int);
 		*format += 1;
 	}
 	else
 		params->margin = printf_parse_int(format);
+	if (**format == '*')
+		parse_width(params, format, args);
 }
 
 void parse_precision(t_printf_params *params, const char **format)
@@ -152,10 +155,15 @@ void parse_type(t_printf_params *params, const char **format)
 		else
 			params->modifier = LONG;
 	}
+	if (**format == 'z' || **format == 'j' || **format == 't')
+	{
+		*format += 1;
+		params->modifier = LONG_LONG;
+	}
 	c = **format;
 	*format += 1;
 	if (c == 'i' || c == 'd' || c == 'o' || c == 'u' || c == 'x' || c == 'X' ||
-		c == 'p' || c == 'P')
+		c == 'p' || c == 'P' || c == 'b')
 	{
 		params->type = INTEGER;
 		params->no_sign = c != 'i' && c != 'd';
@@ -165,6 +173,8 @@ void parse_type(t_printf_params *params, const char **format)
 			params->base = 8;
 		else if (c == 'x' || c == 'X')
 			params->base = 16;
+		else if (c == 'b')
+			params->base = 2;
 		else
 		{
 			params->base = 16;
@@ -194,26 +204,29 @@ char get_digit(long long int i, t_printf_params params)
 char *uint_to_string(unsigned long long int n, t_printf_params params)
 {
 	int len;
+	int tmp;
 	int start;
 	unsigned long long copy;
 	char *res;
 
 	copy = n;
-	len = params.force_sign + 1 + params.pad_positive_blank;
+	len = params.pad_positive_blank;
 	if (params.base_prefix && params.base == 8)
 		len++;
 	else if (params.base_prefix && params.base == 16 && n != 0)
 		len += 2;
-	start = len - 1;
+	start = len;
 
+	tmp = 1;
 	while ((copy /= params.base) > 0)
-		len++;
+		tmp++;
+	len += tmp < params.precision ? params.precision : tmp;
 
 	if (!(res = ft_strnew((size_t)len--)))
 		return (NULL);
 	if (params.pad_positive_blank)
 		*res = ' ';
-	if (params.force_sign)
+	if (params.force_sign && params.base == 10)
 		*res = '+';
 	if (params.base_prefix && params.base % 8 == 0)
 	{
@@ -233,28 +246,29 @@ char *uint_to_string(unsigned long long int n, t_printf_params params)
 char *int_to_string(long long n, t_printf_params params)
 {
 	int len;
+	int tmp;
 	int start;
 	long long copy;
 	char *res;
 
-	if (params.no_sign)
-		return uint_to_string((unsigned long long)n, params);
 	if (n == (long long) 0x8000000000000000)
 		return "-9223372036854775808";
 	copy = n > 0 ? n : -n;
 
-	len = (n < 0 || params.force_sign) + 1 + (params.pad_positive_blank && n >= 0);
-	start = len - 1;
+	len = (n < 0 || params.force_sign) + (params.pad_positive_blank && n >= 0);
+	start = len;
 
+	tmp = 1;
 	while ((copy /= params.base) > 0)
-		len++;
+		tmp++;
+	len += tmp < params.precision ? params.precision : tmp;
 
 	copy = n > 0 ? n : -n;
 	if (!(res = ft_strnew((size_t)len--)))
 		return (NULL);
 	if (n >= 0 && params.pad_positive_blank)
 		*res = ' ';
-	if (n < 0 || params.force_sign)
+	if (n < 0 || (params.force_sign && params.base == 10))
 		*res = (char)(n < 0 ? '-' : '+');
 	while (len >= start)
 	{
@@ -278,18 +292,36 @@ char *print_to_str(t_printf_params params, va_list args)
 	}
 	else if (params.type == INTEGER)
 	{
-		unsigned long long n = (unsigned long long int)-1;
-		if (params.modifier == LONG_LONG)
-			n = va_arg(args, unsigned long long);
-		else if (params.modifier == LONG)
-			n = va_arg(args, unsigned long);
-		else if (params.modifier == DEFAULT)
-			n = va_arg(args, unsigned int);
-		else if (params.modifier == SHORT)
-			n = (unsigned long long)(short)va_arg(args, int);
-		else if (params.modifier == CHAR)
-			n = (unsigned long long)(char)va_arg(args, int);
-		s = int_to_string(n, params);
+		if (params.no_sign)
+		{
+			unsigned long long n = (unsigned long long int)-1;
+			if (params.modifier == LONG_LONG)
+				n = va_arg(args, unsigned long long);
+			else if (params.modifier == LONG)
+				n = va_arg(args, unsigned long);
+			else if (params.modifier == DEFAULT)
+				n = va_arg(args, unsigned int);
+			else if (params.modifier == SHORT)
+				n = (unsigned short)va_arg(args, unsigned int);
+			else if (params.modifier == CHAR)
+				n = (unsigned char)va_arg(args, unsigned int);
+			s = uint_to_string(n, params);
+		}
+		else
+		{
+			long long n = (long long)-1;
+			if (params.modifier == LONG_LONG)
+				n = va_arg(args, long long);
+			else if (params.modifier == LONG)
+				n = va_arg(args, long);
+			else if (params.modifier == DEFAULT)
+				n = va_arg(args, int);
+			else if (params.modifier == SHORT)
+				n = (short)va_arg(args, int);
+			else if (params.modifier == CHAR)
+				n = (char)va_arg(args, int);
+			s = int_to_string(n, params);
+		}
 	}
 	else if (params.type == FLOAT)
 	{
@@ -313,7 +345,7 @@ void add_padding(char **str, t_printf_params params)
 	padding = params.margin - i;
 	if (padding <= 0)
 		return ;
-	padchar = (char)(params.pad_zero ? '0' : ' ');
+	padchar = (char)(params.pad_zero && !params.precision ? '0' : ' ');
 	new = ft_strnew((size_t)params.margin);
 	if (params.justify_left)
 	{
@@ -327,7 +359,13 @@ void add_padding(char **str, t_printf_params params)
 		while (i < padding)
 			new[i++] = padchar;
 		ft_strcpy(new + padding, *str);
+		if (padchar == '0' && (**str == '+' || **str == '-' || **str == ' '))
+		{
+			*new = **str;
+			new[padding] = '0';
+		}
 	}
+	free(*str);
 	*str = new;
 }
 
