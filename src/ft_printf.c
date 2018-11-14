@@ -8,7 +8,7 @@ void ft_bzero(void *params, size_t len)
 		((char *)params)[--len] = 0;
 }
 
-int ft_strlen(char *s)
+int ft_strlen(const char *s)
 {
 	int i;
 
@@ -56,8 +56,6 @@ int printf_print(char *s)
 {
 	unsigned int i;
 
-	if (s == NULL)
-		return printf_print("(null)");
 	i = 0;
 	while (s[i])
 		i++;
@@ -306,16 +304,30 @@ char *int_to_string(long long n, t_printf_params params)
 	return res;
 }
 
+char *ft_strdup(char *s)
+{
+	unsigned int i;
+	char *ret;
+
+	if (s == NULL)
+		return ft_strdup("(null)");
+	i = 0;
+	while (s[i])
+		i++;
+	ret = ft_strnew(i);
+	ft_strcpy(ret, s);
+	return ret;
+}
+
 char *print_to_str(t_printf_params params, va_list args)
 {
 	char *s;
 
 	if (params.type == STRING)
-		return va_arg(args, char*);
-	else if (params.type == CHARACTER)
 	{
-		s = ft_strnew(1);
-		s[0] = (char)va_arg(args, int);
+		s = ft_strdup(va_arg(args, char*));
+		if (params.precision != -1 && params.precision < ft_strlen(s))
+			s[params.precision] = 0;
 	}
 	else if (params.type == INTEGER)
 	{
@@ -355,7 +367,7 @@ char *print_to_str(t_printf_params params, va_list args)
 		s = "TODO float";
 	}
 	else
-		s = "";
+		s = ft_strnew(0);
 	return s;
 }
 
@@ -369,7 +381,7 @@ void add_padding(char **str, t_printf_params params)
 	i = 0;
 	while (str[0][i])
 		i++;
-	padchar = (char)(params.pad_zero && !params.precision ? '0' : ' ');
+	padchar = (char)(params.pad_zero && params.precision == -1 ? '0' : ' ');
 	padding = params.margin - i;
 	if (padding <= 0)
 		return ;
@@ -407,12 +419,51 @@ void add_padding(char **str, t_printf_params params)
 int print_with_params(t_printf_params params, va_list args)
 {
 	char *str;
+	char *ptr;
+	char to_print;
 	int ret;
 
-	str = print_to_str(params, args);
+	if (params.type == CHARACTER)
+	{
+		str = ft_strnew(1);
+		*str = -1;
+	}
+	else
+		str = print_to_str(params, args);
 	add_padding(&str, params);
-	ret = printf_print(str);
-	free(str);
+	if (params.type == CHARACTER)
+	{
+		ptr = str;
+		ret = 0;
+		while (str[ret])
+		{
+			if (str[ret] == -1) {
+				if (ret == 0)
+					str++;
+				else
+					str[ret] = 0;
+				break;
+			}
+			ret++;
+		}
+		to_print = (char)va_arg(args, int);
+		if (params.justify_left)
+		{
+			write(1, &to_print, 1);
+			ret = printf_print(str) + 1;
+		}
+		else
+		{
+			ret = printf_print(str) + 1;
+			write(1, &to_print, 1);
+		}
+		free(ptr);
+	}
+	else
+	{
+		ret = printf_print(str);
+		free(str);
+	}
 	return ret;
 }
 
@@ -421,6 +472,7 @@ int printf_special(const char **format, va_list args)
 	t_printf_params params;
 
 	ft_bzero(&params, sizeof(params));
+	params.precision = -1;
 	parse_flags(&params, format);
 	parse_width(&params, format, args);
 	parse_precision(&params, format);
