@@ -239,7 +239,7 @@ char *int_to_string(long long n, t_printf_params params)
 
 	if (params.no_sign)
 		return uint_to_string((unsigned long long)n, params);
-	if (n == -0x8000000000000000)
+	if (n == (long long) 0x8000000000000000)
 		return "-9223372036854775808";
 	copy = n > 0 ? n : -n;
 
