@@ -52,7 +52,7 @@ int printf_print_percent(const char **s)
 	return i;
 }
 
-int printf_print(char *s)
+int printf_print(const char *s)
 {
 	unsigned int i;
 
@@ -487,6 +487,7 @@ int ft_printf(const char *format, ...)
 	va_list args;
 	int len;
 
+	printf_print(format);
 	len = 0;
 	va_start(args, format);
 	while (*format)
