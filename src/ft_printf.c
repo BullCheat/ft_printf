@@ -489,7 +489,6 @@ int ft_printf(const char *format, ...)
 	va_list args;
 	int len;
 
-	printf_print(format);
 	len = 0;
 	va_start(args, format);
 	while (*format)
