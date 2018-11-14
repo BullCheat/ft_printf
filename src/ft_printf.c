@@ -188,7 +188,7 @@ void parse_type(t_printf_params *params, const char **format)
 		else
 		{
 			params->base = 16;
-			params->base_prefix = 1;
+			params->base_prefix = (char)(1 + (c == 'p'));
 			params->modifier = LONG_LONG;
 		}
 	}
@@ -233,10 +233,12 @@ char *uint_to_string(unsigned long long int n, t_printf_params params)
 	int start;
 	unsigned long long copy;
 	char *res;
+	char should_prefix;
 
 	copy = n;
 	len = params.pad_positive_blank;
-	if (params.base_prefix && params.base % 8 == 0 && n != 0)
+	should_prefix = params.base_prefix && params.base % 8 == 0 && (n != 0 || (params.base_prefix & 2));
+	if (should_prefix)
 		len += params.base / 8;
 	start = len;
 
@@ -251,7 +253,7 @@ char *uint_to_string(unsigned long long int n, t_printf_params params)
 		*res = ' ';
 	if (params.force_sign && params.base == 10)
 		*res = '+';
-	if (params.base_prefix && params.base % 8 == 0 && n != 0)
+	if (should_prefix)
 	{
 		res[params.force_sign ? 1 : 0] = '0';
 		if (params.base == 16)
@@ -263,7 +265,7 @@ char *uint_to_string(unsigned long long int n, t_printf_params params)
 		n /= params.base;
 		len--;
 	}
-	if (params.base == 8 && params.base_prefix && res[1] == '0' && ft_strlen(res) > params.precision)
+	if (should_prefix && res[1] == '0' && ft_strlen(res) > params.precision)
 		ft_substr(&res, 1);
 	return res;
 }
