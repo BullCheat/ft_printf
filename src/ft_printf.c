@@ -1,10 +1,21 @@
 #include <ft_printf.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 void ft_bzero(void *params, size_t len)
 {
 	while (len)
 		((char *)params)[--len] = 0;
+}
+
+int ft_strlen(char *s)
+{
+	int i;
+
+	i = 0;
+	while (s[i])
+		i++;
+	return i;
 }
 
 void *ft_memalloc(size_t size)
@@ -160,10 +171,11 @@ void parse_type(t_printf_params *params, const char **format)
 		*format += 1;
 		params->modifier = LONG_LONG;
 	}
-	c = **format;
+	c = (char)tolower(**format); // TODO
+	params->uppercase = **format != c;
 	*format += 1;
-	if (c == 'i' || c == 'd' || c == 'o' || c == 'u' || c == 'x' || c == 'X' ||
-		c == 'p' || c == 'P' || c == 'b')
+	if (c == 'i' || c == 'd' || c == 'o' || c == 'u' || c == 'x' ||
+		c == 'p' || c == 'b')
 	{
 		params->type = INTEGER;
 		params->no_sign = c != 'i' && c != 'd';
@@ -171,7 +183,7 @@ void parse_type(t_printf_params *params, const char **format)
 			params->base = 10;
 		else if (c == 'o')
 			params->base = 8;
-		else if (c == 'x' || c == 'X')
+		else if (c == 'x')
 			params->base = 16;
 		else if (c == 'b')
 			params->base = 2;
@@ -181,7 +193,6 @@ void parse_type(t_printf_params *params, const char **format)
 			params->base_prefix = 1;
 			params->modifier = LONG_LONG;
 		}
-		params->uppercase = 'A' <= c && c <= 'Z';
 	}
 	else if (c == 's')
 		params->type = STRING;
@@ -201,6 +212,22 @@ char get_digit(long long int i, t_printf_params params)
 		return (char)('a' + i - 10);
 }
 
+void ft_substr(char **res, unsigned int i)
+{
+	char *new;
+	unsigned int a;
+
+	a = i;
+	while ((*res)[a])
+		a++;
+	new = ft_strnew((size_t)(a - i));
+	a = 0;
+	while ((*res)[i])
+		new[a++] = (*res)[i++];
+	free(*res);
+	*res = new;
+}
+
 char *uint_to_string(unsigned long long int n, t_printf_params params)
 {
 	int len;
@@ -211,10 +238,8 @@ char *uint_to_string(unsigned long long int n, t_printf_params params)
 
 	copy = n;
 	len = params.pad_positive_blank;
-	if (params.base_prefix && params.base == 8)
-		len++;
-	else if (params.base_prefix && params.base == 16 && n != 0)
-		len += 2;
+	if (params.base_prefix && params.base % 8 == 0 && n != 0)
+		len += params.base / 8;
 	start = len;
 
 	tmp = 1;
@@ -228,11 +253,11 @@ char *uint_to_string(unsigned long long int n, t_printf_params params)
 		*res = ' ';
 	if (params.force_sign && params.base == 10)
 		*res = '+';
-	if (params.base_prefix && params.base % 8 == 0)
+	if (params.base_prefix && params.base % 8 == 0 && n != 0)
 	{
 		res[params.force_sign ? 1 : 0] = '0';
 		if (params.base == 16)
-			res[params.force_sign + 1] = 'x';
+			res[params.force_sign + 1] = get_digit('x' - 'a' + 10, params);
 	}
 	while (len >= start)
 	{
@@ -240,6 +265,8 @@ char *uint_to_string(unsigned long long int n, t_printf_params params)
 		n /= params.base;
 		len--;
 	}
+	if (params.base == 8 && params.base_prefix && res[1] == '0' && ft_strlen(res) > params.precision)
+		ft_substr(&res, 1);
 	return res;
 }
 
@@ -342,10 +369,10 @@ void add_padding(char **str, t_printf_params params)
 	i = 0;
 	while (str[0][i])
 		i++;
+	padchar = (char)(params.pad_zero && !params.precision ? '0' : ' ');
 	padding = params.margin - i;
 	if (padding <= 0)
 		return ;
-	padchar = (char)(params.pad_zero && !params.precision ? '0' : ' ');
 	new = ft_strnew((size_t)params.margin);
 	if (params.justify_left)
 	{
@@ -359,10 +386,18 @@ void add_padding(char **str, t_printf_params params)
 		while (i < padding)
 			new[i++] = padchar;
 		ft_strcpy(new + padding, *str);
-		if (padchar == '0' && (**str == '+' || **str == '-' || **str == ' '))
+		if (padchar == '0')
 		{
-			*new = **str;
-			new[padding] = '0';
+			if (**str == '+' || **str == '-' || **str == ' ')
+			{
+				*new = **str;
+				new[padding] = '0';
+			}
+			else if (**str == '0' && (str[0][1] == 'x' || str[0][1] == 'X'))
+			{
+				new[1] = str[0][1];
+				new[padding + 1] = '0';
+			}
 		}
 	}
 	free(*str);
@@ -372,10 +407,13 @@ void add_padding(char **str, t_printf_params params)
 int print_with_params(t_printf_params params, va_list args)
 {
 	char *str;
+	int ret;
 
 	str = print_to_str(params, args);
 	add_padding(&str, params);
-	return printf_print(str);
+	ret = printf_print(str);
+	free(str);
+	return ret;
 }
 
 int printf_special(const char **format, va_list args)
