@@ -323,13 +323,36 @@ char *ft_strdup(char *s)
 	return ret;
 }
 
+char *ft_lstrdup(int *s)
+{
+	unsigned int i;
+	char *ret;
+
+	if (s == NULL)
+		return ft_strdup("(null)");
+	i = 0;
+	while (s[i])
+		i++;
+	ret = ft_strnew(i);
+	i = 0;
+	while (s[i])
+	{
+		ret[i] = (char)s[i];
+		i++;
+	}
+	return ret;
+}
+
 char *print_to_str(t_printf_params params, va_list args)
 {
 	char *s;
 
 	if (params.type == STRING)
 	{
-		s = ft_strdup(va_arg(args, char*));
+		if (params.modifier == LONG)
+			s = ft_lstrdup(va_arg(args, int*));
+		else
+			s = ft_strdup(va_arg(args, char*));
 		if (params.precision != -1 && params.precision < ft_strlen(s))
 			s[params.precision] = 0;
 	}
