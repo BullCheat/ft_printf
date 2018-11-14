@@ -198,6 +198,8 @@ void parse_type(t_printf_params *params, const char **format)
 		params->type = CHARACTER;
 	else if (c == 'f')
 		params->type = FLOAT;
+	if (c == 'd' && params->uppercase)
+		params->modifier = LONG;
 }
 
 char get_digit(long long int i, t_printf_params params)
